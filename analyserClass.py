@@ -70,7 +70,7 @@ class pcmAnalyzer:
         
     def plotPowerSpectrum(self):
         # Plot the power spectrum of the signal
-        plt.figure()
+        plt.figure(figsize=(12, 8))
         plt.plot(self.getPowerSpectrum().frequency, self.getPowerSpectrum().power)
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power (dBFS)')
@@ -89,10 +89,28 @@ class pcmAnalyzer:
         plt.plot(self.getFundamental().frequency, self.getFundamental().power, 'go')
         
         # inlude harmonics in the plot marked with red dots
-        for harmonic in self.getHarmonics():
+        for harmonic in self.getHarmonics(10):
             plt.plot(harmonic.frequency, harmonic.power, 'ro')
+        # Add textbox including the printouts in the printAll() function to the plot
+        text = f"Fundamental:\nFrequency = {self.getFundamental().frequency/1e3:.3f} kHz\tPower = {self.getFundamental().power:.1f} dBFS\n\n"
+        text += "Harmonics:\n"
+        for i, harmonic in enumerate(self.getHarmonics(5)):
+            text += f"{i+2}: Frequency = {harmonic.frequency/1e3:.3f} kHz, Power = {harmonic.power:.1f} dBFS\n"
+        text += f"\nNoise Power: {self.getNoisePower():.1f} dBFS\n"
+        text += f"{len(self.getHarmonics())} harmonics power: {self.getHarmonicPower(5):.1f} dBFS\n"
+        text += f"THD+N FS: {self.getTHDN_FS():.1f} dBFS\n"
+        text += f"THD+N: {self.getTHDN():.1f} dBc\n"
+        text += f"SINAD FS: {self.getSINAD_FS():.1f} dBFS\n"
+        text += f"SINAD: {self.getSINAD():.1f} dBc\n"
+        text += f"SFDR FS: {self.getSFDR_FS():.1f} dBFS\n"
+        text += f"ENOB FS: {self.getENOB_FS():.1f} bits\n"
+        text += f"ENOB: {self.getENOB():.1f} bits\n"
+        plt.text(0.1, 0.5, text, fontsize=9, transform=plt.gca().transAxes)
+              
+        
         
         plt.grid()
+        # show the plot
         plt.show()
         
     
@@ -273,8 +291,8 @@ def main():
     #plt.close('all')
     
     #from testData import pcmSignal as generate_pcm_signal_with_harmonics
-    pcmSgl = pcmSignal(frequency=179e3, amplitude=-6, sampling_rate=500e3,
-                       adcResolution=12, harmonic_levels=[-80, -72, -95, -90, -85, -50, -60, -70])
+    pcmSgl = pcmSignal(frequency=179e3, amplitude=0, sampling_rate=500e3,
+                       adcResolution=8, harmonic_levels=[-80, -72, -95, -90, -85, -50, -60, -70])
     pcmSgl.printSignalSpecs()
     #pcmSgl.plotPCMVector()
     
@@ -285,10 +303,10 @@ def main():
     #analysis.getHarmonics(5)
     
     # print the results of the signal analysis
-    analysis.printAll()
+    #analysis.printAll()
     
     # plot the power spectrum of the signal
-    #analysis.plotPowerSpectrum()
+    analysis.plotPowerSpectrum()
      
 if __name__ == '__main__':
     main()
