@@ -9,36 +9,28 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
-from testData import pcmSignal
+from pcmVector import pcmSignal
 
 # define a variable of type pcmSignal
-inputSignal = pcmSignal
+# inputSignal = pcmSignal()
                
 class pcmAnalyzer:
-    class peak:
-        def __init__(self, frequency=None, power=None):
-            self.frequency = frequency
-            self.power = power
-
-    class powerSpectrum:
-        def __init__(self, frequency=None, power=None):
-            self.frequency = frequency
-            self.power = power
-
-    
-    def __init__(self, inputSignal): 
-        # Remove the redundant line that initializes the inputSignal variable
-        self.signal = inputSignal.pcmVector
-        self.sampling_rate = inputSignal.sampling_rate
-        self.adcResolution = inputSignal.adcResolution
-        self.adcFS = 2 ** inputSignal.adcResolution - 1
-        self.amplitude = inputSignal.amplitude
-        self.power_spectrum = self.powerSpectrum()
+    def __init__(self, signal=None, sampling_rate=None, adcResolution=None): 
+        self.signal = signal
+        self.sampling_rate =sampling_rate
+        self.adcResolution = adcResolution
+        
+        self.adcFS = 2 ** (adcResolution - 1)
+        print(f"ADC Full Scale: {self.adcFS}")
+        self.num_samples = len(signal)
+        print(f"Number of samples: {self.num_samples}")
+        self.power_spectrum = self.spectrum()
+        self.powerSpectrumLinear = self.spectrum()
+        self.magnitude_spectrum = self.spectrum()
         self.fundamental = self.peak()
         self.quantization_noise = 20 * np.log10(1 / (2 ** (self.adcResolution - 1)))
-        # self.harmonics is a list of peak objects
-        # initialize the list of harmonics
         self.harmonics = []
+        self.THD = None
         self.THDN = None
         self.THDN_FS = None
         self.SNR = None
@@ -50,66 +42,100 @@ class pcmAnalyzer:
         self.ENOB_FS = None       
         self.noisePower = None
         self.harmonicPower = None
-  
+        self.totNoiseAndDistortion = None
         
+    class peak:
+        def __init__(self, frequency=None, power=None):
+            self.frequency = frequency
+            self.power = power
+
+    class spectrum:
+        def __init__(self, frequency=None, level=None):
+            self.frequency = frequency
+            self.level = level
+    
+    def getMagnitudeSpectrum(self):
+        if self.magnitude_spectrum.frequency is None:
+            # Calculate the magnitude spectrum of the signal
+            fft_result = np.fft.fft(self.signal)                # FFT of the signal
+            magnitude_spectrum = np.abs(fft_result) / self.num_samples   # Magnitude spectrum
+            # compensate level for half side of the spectrum
+            magnitude_spectrum = magnitude_spectrum * 2
+            # convert the magnitude spectrum to dBFS
+            self.magnitude_spectrum.level = 20 * np.log10(magnitude_spectrum / self.adcFS + 1e-100)[:self.num_samples // 2]
+            # Create frequency axis
+            self.magnitude_spectrum.frequency = np.fft.fftfreq(self.num_samples, d=1/self.sampling_rate)[:self.num_samples // 2]
+            
+        return self.magnitude_spectrum
+                    
     def getPowerSpectrum(self):
         if self.power_spectrum.frequency is None:
-            # calculate power spectrum
-            # frequency vector
-            self.power_spectrum.frequency = np.fft.fftfreq(len(self.signal), 1/self.sampling_rate)
-            # scale with input sample length
-            power_spectrum = np.abs(np.fft.fft(self.signal)) / len(self.signal)
-            # Convert to dBFS
-            power_spectrum = 20 * np.log10(power_spectrum / (self.adcFS / 1) + 1e-10)
-            # convert to one sided spectrum
-            power_spectrum = power_spectrum[:len(self.power_spectrum.frequency)//2] + 6   # only positive frequencies are valid
-            self.power_spectrum.frequency = self.power_spectrum.frequency[:len(self.power_spectrum.frequency)//2]   # only positive frequencies are valid   
-            self.power_spectrum.power = power_spectrum
+            # calculate power spectrum from the magnitude spectrum given in dBFS
+            self.power_spectrum.frequency = self.getMagnitudeSpectrum().frequency
+            self.power_spectrum.level = 10 ** (self.getMagnitudeSpectrum().level / 20)
+            self.power_spectrum.level = self.power_spectrum.level ** 2
+            self.power_spectrum.level = 10 * np.log10(self.power_spectrum.level)
             
         return self.power_spectrum
+            
         
     def plotPowerSpectrum(self):
         # Plot the power spectrum of the signal
-        plt.figure(figsize=(12, 8))
-        plt.plot(self.getPowerSpectrum().frequency, self.getPowerSpectrum().power)
+        plt.figure()
+        plt.plot(self.getPowerSpectrum().frequency, self.getPowerSpectrum().level)
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power (dBFS)')
-        plt.title('Power Spectrum of the Signal')
-        # qunatization noise level for a sampled signal with given ADC resolution and amplitude is calculated as:
-        # 20 * log10(1 / (2 ** (adcResolution - 1))) dBFS
-        quantization_noise = 20 * np.log10(1 / (2 ** (self.adcResolution - 1)))
-        print(f"Quantization Noise Level: {quantization_noise} dBFS")
+        plt.title('Power Spectrum')
         
-        # set the y-axis limits to the quantization noise level and the full scale level of the ADC
-        plt.ylim(quantization_noise - 60, 10)
+        # set the y-axis limits to the average noise power - 10 dBFS and 10 dBFS
+        plt.ylim([self.getNoisePower() - 40, 10])
+        
         # format the x-axis to show the frequency in kHz
-        plt.xticks(np.arange(0, self.sampling_rate / 2 + 1e5, 1e5), [f'{f/1e3:.0f}' for f in np.arange(0, self.sampling_rate / 2 + 1e5, 1e5)])
+        plt.xticks(np.arange(0, self.sampling_rate / 2 + 1e5, 1e5), 
+                   [f'{f/1e3:.0f}' for f in np.arange(0, self.sampling_rate / 2 + 1e5, 1e5)])
         
         # include the fundamental frequency in the plot marked with a green ring
         plt.plot(self.getFundamental().frequency, self.getFundamental().power, 'go')
+        plt.text(self.getFundamental().frequency, self.getFundamental().power, 
+                 f' {self.getFundamental().power:.1f}', fontsize=10, color='green')
+    
         
-        # inlude harmonics in the plot marked with red dots
-        for harmonic in self.getHarmonics(10):
+        # inlude harmonics in the plot marked with red dots, the harmonic power, and harmonic index
+        harmonics = self.getHarmonics(10)
+        for harmonic in harmonics:
+            i = harmonics.index(harmonic) + 2
             plt.plot(harmonic.frequency, harmonic.power, 'ro')
-        # Add textbox including the printouts in the printAll() function to the plot
-        text = f"Fundamental:\nFrequency = {self.getFundamental().frequency/1e3:.3f} kHz\tPower = {self.getFundamental().power:.1f} dBFS\n\n"
-        text += "Harmonics:\n"
-        for i, harmonic in enumerate(self.getHarmonics(5)):
-            text += f"{i+2}: Frequency = {harmonic.frequency/1e3:.3f} kHz, Power = {harmonic.power:.1f} dBFS\n"
-        text += f"\nNoise Power: {self.getNoisePower():.1f} dBFS\n"
-        text += f"{len(self.getHarmonics())} harmonics power: {self.getHarmonicPower(5):.1f} dBFS\n"
-        text += f"THD+N FS: {self.getTHDN_FS():.1f} dBFS\n"
-        text += f"THD+N: {self.getTHDN():.1f} dBc\n"
-        text += f"SINAD FS: {self.getSINAD_FS():.1f} dBFS\n"
-        text += f"SINAD: {self.getSINAD():.1f} dBc\n"
-        text += f"SFDR FS: {self.getSFDR_FS():.1f} dBFS\n"
-        text += f"ENOB FS: {self.getENOB_FS():.1f} bits\n"
-        text += f"ENOB: {self.getENOB():.1f} bits\n"
-        plt.text(0.1, 0.5, text, fontsize=9, transform=plt.gca().transAxes)
-              
-        
-        
+            plt.text(harmonic.frequency, harmonic.power, f'_H{i}: {harmonic.power:.1f}', fontsize=10, color='red')
+
         plt.grid()
+        
+        # Add textbox including the printouts in a table format
+        text = [
+            ['Param', 'Value'],
+            ['Noise Power:', f'{self.getNoisePower():.1f} dBFS'],
+            ['Harmonic power THD:', f'{self.getTHD(5):.1f} dBFS'],
+            ['THD+N FS:', f'{self.getTHDN_FS():.1f} dBFS'],
+            ['THD+N:', f'{self.getTHDN():.1f} dBc'],
+            ['SINAD FS:', f'{self.getSINAD_FS():.1f} dBFS'],
+            ['SINAD:', f'{self.getSINAD():.1f} dBc'],
+            ['SFDR FS:', f'{self.getSFDR_FS():.1f} dBFS'],
+            ['ENOB FS:', f'{self.getENOB_FS():.1f} bits'],
+            ['ENOB:', f'{self.getENOB():.1f} bits'],
+            ['THD:', f'{self.getTHD():.1f} dB']
+            ]
+        
+        # table font size
+        plt.rc('font', size=15)
+        # create a table with the text in the upper left corner of the plot
+        # the table is 60% of the plot width and 50% of the plot height
+        table = plt.table(cellText=text, loc='upper left', cellLoc='left', bbox=[0, 0.4, 0.6, 0.6])
+        
+        # make the edges of the table white
+        cells = table.properties()['children']
+        for cell in cells:
+            cell.set_edgecolor('white')
+            
+        
         # show the plot
         plt.show()
         
@@ -117,23 +143,24 @@ class pcmAnalyzer:
     def getFundamental(self):
         if self.fundamental.frequency is None:
             # find the peaks of the power spectrum
-            peaks, _ = find_peaks(self.getPowerSpectrum().power, height=-100)
+            peaks, _ = find_peaks(self.getPowerSpectrum().level, height=-100)
             # find the peak with the highest power
-            self.fundamental.power = max(self.getPowerSpectrum().power[peaks])
-            index = np.where(self.getPowerSpectrum().power == self.fundamental.power)[0][0]
+            self.fundamental.power = max(self.getPowerSpectrum().level[peaks])
+            index = np.where(self.getPowerSpectrum().level == self.fundamental.power)[0][0]
             # find the frequency of the peak
             self.fundamental.frequency = self.getPowerSpectrum().frequency[index]
         return self.fundamental
         
     def findPeak(self, frequency):
         # find the highest peak in the power spectrum within +-3 frequency bins of the given frequency
-        # find the index of the given frequency
-        index = np.where(self.getPowerSpectrum().frequency == frequency)[0][0]
+        # find the closest frequency bin to the given frequency
+        index = np.argmin(np.abs(self.getPowerSpectrum().frequency - frequency))
+        
         # find the peak with the highest power within +-3 frequency bins of the given frequency
         top = self.peak()
-        top.power = max(self.getPowerSpectrum().power[index - 2: index + 2])
+        top.power = max(self.getPowerSpectrum().level[index - 2: index + 2])
         # find the frequency of the peak
-        top.frequency = self.getPowerSpectrum().frequency[np.where(self.getPowerSpectrum().power == top.power)[0][0]]    
+        top.frequency = self.getPowerSpectrum().frequency[np.where(self.getPowerSpectrum().level == top.power)[0][0]]    
         return top
     
     def getAlias(self, harmonic_frequency):
@@ -158,6 +185,7 @@ class pcmAnalyzer:
                     frequency = self.getAlias(harmonic)
                     power = self.findPeak(frequency).power
                     self.harmonics.append(self.peak(frequency, power))
+                    #print(f"Harmonic: {frequency/1e3:.3f} kHz, Power: {power:.1f} dBFS")
             self.harmonics = self.harmonics[:number_of_harmonics]
         return self.harmonics
     
@@ -168,80 +196,81 @@ class pcmAnalyzer:
             # remove the fundamental frequency and its harmonics from the power spectrum to estimate the noise power
             # remove the +- 1 frequency bins around the frequency of the fundamental frequency and its harmonics
             # replace the power of the removed bins with the average power of the bins before and after the removed bins
-            pwrSpectrum = self.getPowerSpectrum().power.copy()
-            for harmonic in self.getHarmonics(100):
-                index = np.where(self.getPowerSpectrum().frequency == harmonic.frequency)[0][0]
-                pwrSpectrum[index - 1: index + 2] = np.mean([pwrSpectrum[index - 2], pwrSpectrum[index + 2]])
+            pwrSpectrum = self.getPowerSpectrum().level.copy()
+            peakArray = self.getHarmonics(100).copy()
+            peakArray.append(self.getFundamental())
+            
+            for peak in peakArray:
+                index = np.where(self.getPowerSpectrum().frequency == peak.frequency)[0][0]
+                pwrSpectrum[index - 1: index + 1] = np.mean([pwrSpectrum[index - 2], pwrSpectrum[index + 2]])
             # calculate the noise power as the average power of the power spectrum
-            self.noisePower = np.mean(pwrSpectrum)
+            
+            
+            pwrSpectrum = 10 ** (pwrSpectrum / 10)
+            self.noisePower = 10 * np.log10(np.sum(pwrSpectrum))
+            #self.noisePower = np.mean(pwrSpectrum)
             
         return self.noisePower
     
-    def getHarmonicPower(self, number_of_harmonics=0):
-        # calculate the total power of the harmonics
-        if self.harmonicPower is None:
-            self.harmonicPower = sum([10 ** (harmonic.power / 10) for harmonic in self.getHarmonics(number_of_harmonics)])
-            self.harmonicPower = 10 * np.log10(self.harmonicPower)
+    def getTHD(self, number_of_harmonics=0):
+        # THD is defined as the sum of the powers of all harmonics
+        if self.THD is None:
+            self.THD = sum([10 ** (harmonic.power / 10) for harmonic in self.getHarmonics(number_of_harmonics)])
+            self.THD = 10 * np.log10(self.THD)
             
-        return self.harmonicPower
+        return self.THD
     
     def getTHDN_FS(self):
+        # THD+N is defined as the sum of the powers of all harmonics and noise
+        # Noise power is calculated as the average power of the power spectrum excluding the fundamental frequency and its harmonics
+        # The unit of the Noise power is dBFS and the unit of the THD is dBFS
         if self.THDN_FS is None:
-
-            # Convert dBFS to linear scale
-            fundamental_power = 10 ** (self.getFundamental().power / 20)
-            harmonic_powers = [10 ** (harmonic.power / 20) for harmonic in self.getHarmonics(100)]
+            # convert the noise power from dBFS to linear scale
+            noise_power_linear = 10 ** (self.getNoisePower() / 10)
             
-            # Calculate THD
-            thd = np.sqrt(np.sum(np.array(harmonic_powers) ** 2) / fundamental_power ** 2) # THD in linear scale
-
-            # Calculate noise power
-            noise_power = 10 ** (self.getNoisePower() / 10)
+            # Convert the THD from dBFS to linear scale
+            THD_linear = 10 ** (self.getTHD(100) / 10)
             
-            # Calculate THD+N in dBFS
-            self.THDN_FS = 20 * np.log10(np.sqrt(thd ** 2 + noise_power))
-
+            # calculate the THD+N in linear scale
+            THDN_linear = (THD_linear + noise_power_linear)
+            #THDN_linear = np.sqrt(THD_linear ** 2 + noise_power_linear)
+            
+            # convert the THD+N back to dBFS
+            self.THDN_FS = 10 * np.log10(THDN_linear)
+            
         return self.THDN_FS
     
     def getTHDN(self):
         if self.THDN is None:
-            # Convert THDN_FS from dBFS to dBc
-            self.THDN = self.getTHDN_FS() - self.getFundamental().power 
+            self.THDN = self.getTHDN_FS() - self.getFundamental().power
         return self.THDN
     
-     
-    def getSINAD_FS(self):
-        # SINAD_FS is defined as the ratio of the power of the fundamental frequency to the sum of the powers of all other frequencies
-        # SINAD_FS = 10 * log10(P1 / (P2 + P3 + ... + Pn + Pn+1 + ...))
-        # the difference between SINAD_FS and SINAD is that SINAD_FS is referenced to full scale 
-        # and SINAD is referenced to the fundamental power
-        if self.SINAD_FS is None:
-            fundamental_power = 10 ** (self.getFundamental().power / 10)
-            harmonic_powers = [10 ** (harmonic.power / 10) for harmonic in self.getHarmonics(100)]
-            self.SINAD_FS = 10 * np.log10(fundamental_power / sum(harmonic_powers))
-        return self.SINAD_FS
-    
-    
+            
     def getSINAD(self):
         # SINAD is defined as the ratio of the power of the fundamental frequency to the sum of the powers of all other frequencies
         # SINAD = 10 * log10(P1 / (P2 + P3 + ... + Pn + Pn+1 + ...))
-        # the difference between SINAD and SINAD_FS is that SINAD_FS is referenced to full scale 
-        # and SINAD is referenced to the fundamental power. to calculate SINAD from SINAD_FS and fundamental power:
-        # SINAD = SINAD_FS + fundamental power
+        # where P1 is the power of the fundamental frequency and P2, P3, ..., Pn, Pn+1, ... are the powers of the harmonics and noise
         if self.SINAD is None:
-            self.SINAD = self.getSINAD_FS() + self.getFundamental().power
+            ND_power = self.getTHDN()
+            self.SINAD = self.getFundamental().power - ND_power
         return self.SINAD
     
+    def getSINAD_FS(self):
+        # SINAD_FS is defined as the ratio of the power of the fundamental frequency to the sum of the powers of all other frequencies in dBFS
+        # SINAD_FS = 10 * log10(P1 / (P2 + P3 + ... + Pn + Pn+1 + ...))
+        # where P1 is the power of the fundamental frequency and P2, P3, ..., Pn, Pn+1, ... are the powers of the harmonics and noise
+        if self.SINAD_FS is None:
+            ND_power = self.getTHDN_FS()
+            self.SINAD_FS = self.getFundamental().power - ND_power
+        return self.SINAD_FS
     
     def getSFDR_FS(self):
-        # SFDR is defined as the ratio of the power of the fundamental frequency to the power of the largest harmonic
-        # SFDR = 10 * log10(P1 / Pn)
-        # where P1 is the power of the fundamental frequency and Pn is the power of the largest harmonic
+        # SFDR_FS is defined as the ratio of the power of the fundamental frequency to the power of the highest harmonic in dBFS
+        # SFDR_FS = P1 - Pn
+        # where P1 is the power of the fundamental frequency and Pn is the power of the highest harmonic
         if self.SFDR_FS is None:
-            fundamental_power = 10 ** (self.getFundamental().power / 10)
-            harmonics_power = [10 ** (harmonic.power / 10) for harmonic in self.getHarmonics(100)]
-            self.SFDR_FS = 10 * np.log10(fundamental_power / max(harmonics_power))
-        return self.SFDR_FS 
+            self.SFDR_FS = self.getFundamental().power - max([harmonic.power for harmonic in self.getHarmonics(100)])
+        return self.SFDR_FS
             
     
     def getENOB_FS(self):
@@ -276,7 +305,7 @@ class pcmAnalyzer:
             print(f"{i+2:<6}{harmonic.frequency/1e3:<15.3f}{harmonic.power:<15.1f}")
             
         print(f"\n{'Noise Power:':<21}{self.getNoisePower():<5.1f} dBFS")
-        print(f"{len(self.getHarmonics())}{' harmonics power:':<18} {self.getHarmonicPower(5):<5.1f} dBFS")
+        print(f"{len(self.getHarmonics())}{' harmonics power:':<18} {self.getTHD(5):<5.1f} dBFS")
         print(f"{'THD+N FS:':<21}{self.getTHDN_FS():<5.1f} dBFS")
         print(f"{'THD+N:':<21}{self.getTHDN():<5.1f} dBc")
         print(f"{'SINAD FS:':<21}{self.getSINAD_FS():<5.1f} dBFS")
@@ -291,17 +320,25 @@ def main():
     #plt.close('all')
     
     #from testData import pcmSignal as generate_pcm_signal_with_harmonics
-    pcmSgl = pcmSignal(frequency=179e3, amplitude=0, sampling_rate=500e3,
-                       adcResolution=8, harmonic_levels=[-80, -72, -95, -90, -85, -50, -60, -70])
+    pcmSgl = pcmSignal(frequency=227e3, 
+                       amplitude=0, 
+                       sampling_rate=2e6, 
+                       adcResolution=8,
+                       harmonic_levels=[-60, -60, -60, -60]
+                       )
+    
     pcmSgl.printSignalSpecs()
     #pcmSgl.plotPCMVector()
     
     # initialize an object of the pcmSignalAnalyser class with the generated pcmSgl as input
-    analysis = pcmAnalyzer(pcmSgl)
+    analysis = pcmAnalyzer(pcmSgl.pcmVector, pcmSgl.sampling_rate, pcmSgl.adcResolution)
+    #analysis.getMagnitudeSpectrum()
     #analysis.getPowerSpectrum()
-    #analysis.getFundamental()
-    #analysis.getHarmonics(5)
-    
+    #3analysis.plotPowerSpectrum()
+    # analysis.getFundamental()
+    # print(f"Fundamental frequency: {analysis.getFundamental().frequency/1e3:.3f} kHz, Power: {analysis.getFundamental().power:.1f} dBFS")
+    # analysis.getHarmonics(5)
+    # 
     # print the results of the signal analysis
     #analysis.printAll()
     
@@ -310,6 +347,4 @@ def main():
      
 if __name__ == '__main__':
     main()
-    
-    
     
