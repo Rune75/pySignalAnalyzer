@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 
-
-# Define a class for the PCM signal analysis with:
-# input signal: the PCM signal and required input parameters for sampled signal analysis
-# output: the analysis results including Distortion, Noise, SMR and dynamic range preformance using typical adc preformance metrics
-#
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from pcmVector import pcmSignal
 
-# define a variable of type pcmSignal
-# inputSignal = pcmSignal()
-               
+# The pcmAnalyzer class is used to analyze the power spectrum of a PCM signal               
 class pcmAnalyzer:
     def __init__(self, signal=None, sampling_rate=None, adcResolution=None): 
         self.signal = signal
@@ -55,8 +47,8 @@ class pcmAnalyzer:
     def getMagnitudeSpectrum(self):
         if self.magnitude_spectrum.frequency is None:
             # Calculate the magnitude spectrum of the signal
-            fft_result = np.fft.fft(self.signal)                # FFT of the signal
-            magnitude_spectrum = np.abs(fft_result) / self.num_samples   # Magnitude spectrum
+            fft_result = np.fft.fft(self.signal)                            # FFT of the signal
+            magnitude_spectrum = np.abs(fft_result) / self.num_samples      # Magnitude spectrum
             # compensate level for half side of the spectrum
             magnitude_spectrum = magnitude_spectrum * 2
             # convert the magnitude spectrum to dBFS
@@ -125,7 +117,6 @@ class pcmAnalyzer:
         # table font size
         plt.rc('font', size=15)
         # create a table with the text in the upper left corner of the plot
-        # the table is 60% of the plot width and 50% of the plot height
         table = plt.table(cellText=text, loc='upper left', cellLoc='left', bbox=[0, 0.4, 0.6, 0.6])
         
         # make the edges of the table white
@@ -133,8 +124,6 @@ class pcmAnalyzer:
         for cell in cells:
             cell.set_edgecolor('white')
             
-        
-        # show the plot
         plt.show()
         
     
