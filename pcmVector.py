@@ -27,11 +27,7 @@ class pcmSignal:
             number_of_periods = self.nrSamples / self.sampling_rate * self.frequency
             number_of_periods = np.round(number_of_periods) # round to the nearest integer
             self.frequency = self.sampling_rate * number_of_periods / self.nrSamples # adjust the frequency to fit the number of periods
-            
-            # Print the adjusted frequency, number of samples, number of periods, and number of samples per period        
-            print("Adjusted frequency: ", self.frequency)
-            print("Number of samples: ", self.nrSamples)
-            print("Number of periods: ", number_of_periods)
+        
             
             # Generate time vector
             time = np.arange(self.nrSamples) / self.sampling_rate
@@ -41,7 +37,7 @@ class pcmSignal:
             
             # convert to full scale ratio
             self.amplitude = float(self.amplitude * self.adcFS)
-            print("Amplitude linear: ", self.amplitude)
+            
             # Generate the waveform with given amplitude, and frequency
             waveform = self.amplitude * np.sin(2 * np.pi * self.frequency * time)
             
@@ -49,15 +45,13 @@ class pcmSignal:
             for i in range(len(self.harmonic_levels)):
                 H_freq = (i + 2) * self.frequency
                 H_lvl = 10 ** (self.harmonic_levels[i] / 20) * self.amplitude
-                print(f'Harmonic {i + 2} frequency: {H_freq} Hz Level: {H_lvl}')
                 waveform = waveform + H_lvl * np.sin(2 * np.pi * H_freq * time)
             self.pcmMaxRes = waveform
             # get waveform amplitude
             self.amplitude = np.max(np.abs(waveform))
-            print("Amplitude: ", self.amplitude)
+            
             # Apply quantization to the signal
             # stepSize = np.linspace(-10*self.adcFS, 10*self.adcFS, 2 ** self.adcResolution)
-
             self.pcmVector = self.quantize(waveform, 1)
         return self.pcmVector
     

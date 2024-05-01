@@ -21,9 +21,7 @@ class pcmAnalyzer:
         self.adcResolution = adcResolution
         
         self.adcFS = 2 ** (adcResolution - 1)
-        print(f"ADC Full Scale: {self.adcFS}")
         self.num_samples = len(signal)
-        print(f"Number of samples: {self.num_samples}")
         self.power_spectrum = self.spectrum()
         self.powerSpectrumLinear = self.spectrum()
         self.magnitude_spectrum = self.spectrum()
@@ -83,7 +81,7 @@ class pcmAnalyzer:
         # Plot the power spectrum of the signal
         plt.figure()
         plt.plot(self.getPowerSpectrum().frequency, self.getPowerSpectrum().level)
-        plt.xlabel('Frequency (Hz)')
+        plt.xlabel('Frequency (kHz)')
         plt.ylabel('Power (dBFS)')
         plt.title('Power Spectrum')
         
