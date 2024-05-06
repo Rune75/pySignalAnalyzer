@@ -47,7 +47,7 @@ class pcmAnalyzer:
     def getMagnitudeSpectrum(self):
         if self.magnitude_spectrum.frequency is None:
             # Calculate the magnitude spectrum of the signal
-            fft_result = np.fft.fft(self.signal)                            # FFT of the signal
+            fft_result = np.fft.fft(self.signal) 
             magnitude_spectrum = np.abs(fft_result) / self.num_samples      # Magnitude spectrum
             # compensate level for half side of the spectrum
             magnitude_spectrum = magnitude_spectrum * 2
@@ -70,12 +70,16 @@ class pcmAnalyzer:
             
         
     def plotPowerSpectrum(self):
-        # Plot the power spectrum of the signal
-        plt.figure()
-        plt.plot(self.getPowerSpectrum().frequency, self.getPowerSpectrum().level)
-        plt.xlabel('Frequency (kHz)')
-        plt.ylabel('Power (dBFS)')
-        plt.title('Power Spectrum')
+        # Plot the power spectrum of the signal and add a table with the results of the signal analysis in two subplots
+        fig = plt.figure(figsize=(10, 5))
+        
+        gs = fig.add_gridspec(1, 2, width_ratios=[2, 1])
+        ax1 = plt.subplot(gs[0])
+        
+        ax1.plot(self.getPowerSpectrum().frequency, self.getPowerSpectrum().level)
+        ax1.set_title('Power Spectrum')
+        ax1.set_xlabel('Frequency [Hz]')
+        ax1.set_ylabel('Power [dBFS]')
         
         # set the y-axis limits to the average noise power - 10 dBFS and 10 dBFS
         plt.ylim([self.getNoisePower() - 40, 10])
@@ -84,20 +88,22 @@ class pcmAnalyzer:
         plt.xticks(np.arange(0, self.sampling_rate / 2 + 1e5, 1e5), 
                    [f'{f/1e3:.0f}' for f in np.arange(0, self.sampling_rate / 2 + 1e5, 1e5)])
         
-        # include the fundamental frequency in the plot marked with a green ring
-        plt.plot(self.getFundamental().frequency, self.getFundamental().power, 'go')
-        plt.text(self.getFundamental().frequency, self.getFundamental().power, 
-                 f' {self.getFundamental().power:.1f}', fontsize=10, color='green')
-    
+        # include the fundamental frequency in the plot marked with a green ring and print the power level and frequency in kHz
+        fundamental = self.getFundamental()
+        plt.plot(fundamental.frequency, fundamental.power, 'go')
+        plt.text(fundamental.frequency, fundamental.power, f'{fundamental.power:.1f} ' f'{fundamental.frequency / 1e3:.0f}kHz', fontsize=10, color='green')
         
         # inlude harmonics in the plot marked with red dots, the harmonic power, and harmonic index
-        harmonics = self.getHarmonics(10)
+        harmonics = self.getHarmonics(50)
         for harmonic in harmonics:
             i = harmonics.index(harmonic) + 2
             plt.plot(harmonic.frequency, harmonic.power, 'ro')
             plt.text(harmonic.frequency, harmonic.power, f'_H{i}: {harmonic.power:.1f}', fontsize=10, color='red')
 
         plt.grid()
+        ax2 = plt.subplot(gs[1])
+        ax2.axis('off')
+        ax2.set_title('Analysis Results')
         
         # Add textbox including the printouts in a table format
         text = [
@@ -114,15 +120,12 @@ class pcmAnalyzer:
             ['THD:', f'{self.getTHD():.1f} dB']
             ]
         
-        # table font size
-        plt.rc('font', size=15)
         # create a table with the text in the upper left corner of the plot
-        table = plt.table(cellText=text, loc='upper left', cellLoc='left', bbox=[0, 0.4, 0.6, 0.6])
+        table = plt.table(cellText=text, loc='upper left', cellLoc='left', colWidths=[0.5, 0.3])
+        # table font size
+        plt.rc('font', size=12)
         
-        # make the edges of the table white
-        cells = table.properties()['children']
-        for cell in cells:
-            cell.set_edgecolor('white')
+        plt.tight_layout()
             
         plt.show()
         
@@ -162,7 +165,6 @@ class pcmAnalyzer:
         if (number_of_harmonics > 0):
             if (len(self.harmonics) < number_of_harmonics):
                 # find the harmonics of the fundamental frequency including aliases even if they are aliased multiple times.
-                # find the harmonics of the fundamental frequency
                 fundamental = self.getFundamental()
                 harmonics = [fundamental.frequency * i for i in range(2, number_of_harmonics + 1)]
             
@@ -177,25 +179,25 @@ class pcmAnalyzer:
         return self.harmonics
     
     
-    def getNoisePower(self):
+    def getNoisePower(self, excl_nrOfHarmonics=100):
         if self.noisePower is None:
             # calculate the noise power in the power spectrum
             # remove the fundamental frequency and its harmonics from the power spectrum to estimate the noise power
             # remove the +- 1 frequency bins around the frequency of the fundamental frequency and its harmonics
             # replace the power of the removed bins with the average power of the bins before and after the removed bins
             pwrSpectrum = self.getPowerSpectrum().level.copy()
-            peakArray = self.getHarmonics(100).copy()
+            peakArray = self.getHarmonics(excl_nrOfHarmonics).copy()
             peakArray.append(self.getFundamental())
             
             for peak in peakArray:
                 index = np.where(self.getPowerSpectrum().frequency == peak.frequency)[0][0]
                 pwrSpectrum[index - 1: index + 1] = np.mean([pwrSpectrum[index - 2], pwrSpectrum[index + 2]])
             # calculate the noise power as the average power of the power spectrum
-            
-            
+            # plt.figure()
+            # plt.plot(self.getPowerSpectrum().frequency, pwrSpectrum)
+            # plt.show()
             pwrSpectrum = 10 ** (pwrSpectrum / 10)
             self.noisePower = 10 * np.log10(np.sum(pwrSpectrum))
-            #self.noisePower = np.mean(pwrSpectrum)
             
         return self.noisePower
     
@@ -207,7 +209,7 @@ class pcmAnalyzer:
             
         return self.THD
     
-    def getTHDN_FS(self):
+    def getTHDN_FS(self, number_of_harmonics=100):
         # THD+N is defined as the sum of the powers of all harmonics and noise
         # Noise power is calculated as the average power of the power spectrum excluding the fundamental frequency and its harmonics
         # The unit of the Noise power is dBFS and the unit of the THD is dBFS
@@ -216,7 +218,7 @@ class pcmAnalyzer:
             noise_power_linear = 10 ** (self.getNoisePower() / 10)
             
             # Convert the THD from dBFS to linear scale
-            THD_linear = 10 ** (self.getTHD(100) / 10)
+            THD_linear = 10 ** (self.getTHD(number_of_harmonics) / 10)
             
             # calculate the THD+N in linear scale
             THDN_linear = (THD_linear + noise_power_linear)
