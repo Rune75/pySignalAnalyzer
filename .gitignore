@@ -23,4 +23,6 @@ build/
 .vscode/
 data/
 sandbox.py
+*.pdf
+
 

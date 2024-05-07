@@ -60,7 +60,7 @@ adcSampleRate = 1e6
 
 
 # remove the DC offset from the signal
-pcmVector = pcmVector - np.mean(pcmVector)
+#pcmVector = pcmVector - np.mean(pcmVector)
 data = pcmVector
 
 zeroCrossings = getZeroCrossings(data)

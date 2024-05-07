@@ -121,13 +121,14 @@ class pcmAnalyzer:
             ]
         
         # create a table with the text in the upper left corner of the plot
-        table = plt.table(cellText=text, loc='upper left', cellLoc='left', colWidths=[0.5, 0.3])
+        table = plt.table(cellText=text, loc='upper left', cellLoc='left', colWidths=[0.7, 0.3])
         # table font size
         plt.rc('font', size=12)
         
-        plt.tight_layout()
+        #plt.tight_layout()
             
-        plt.show()
+        #plt.show()
+        return fig
         
     
     def getFundamental(self):
