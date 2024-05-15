@@ -84,6 +84,14 @@ class pcmAnalyzer:
     def getMagnitudeSpectrum(self):
         # calculate the magnitude spectrum of the signal unsing scipy fft
         if self.magnitude_spectrum.frequency is None:
+            
+            #apply a window to the signal before calculating the fft
+            window = np.hanning(self.num_samples)
+            self.signal = self.signal * window
+            
+            # add compensation for the window
+            self.signal = self.signal / np.mean(window)
+            
             # Calculate the magnitude spectrum of the signal
             fft_result = fft(self.signal)
             magnitude_spectrum = np.abs(fft_result) / self.num_samples
@@ -105,6 +113,8 @@ class pcmAnalyzer:
             self.magnitude_spectrum.frequency = self.magnitude_spectrum.frequency[:int(self.num_samples / 2 + 1)]
             
             #self.magnitude_spectrum.frequency = fftfreq(self.num_samples, d=1/self.sampling_rate)[:int(self.num_samples /2 + 1)]
+            # remove the DC component
+            self.magnitude_spectrum.level[0] = -150
             
         return self.magnitude_spectrum
     
@@ -258,21 +268,16 @@ class pcmAnalyzer:
         # remove the +- 1 frequency bins around the frequency of the fundamental frequency and its harmonics
         # replace the power of the removed bins with the average power of the bins before and after the removed bins
         pwrSpectrum = self.getPowerSpectrum().level.copy()
-        peakArray = self.getHarmonics(excl_nrOfHarmonics)
+        peakArray = self.getHarmonics(excl_nrOfHarmonics) # get the harmonics excluding the first 5 harmonics
         peakArray.append(self.getFundamental())
         
         # rotate the peakArray to start with the fundamental frequency
         peakArray = sorted(peakArray, key=lambda x: x.frequency)
         
         for peak in peakArray:
-            print(f"Peak: {peak.frequency/1e3:.3f} kHz, Power: {peak.power:.1f} dBFS")
-            index = np.where(self.getPowerSpectrum().frequency == peak.frequency)
-            print(f"Index: {index}")
-            # remove the +- 1 frequency bins around the frequency of the fundamental frequency and its harmonics
-            pwrSpectrum[index - 10: index + 10] = -150 # replace the power of the removed bins with -150 dBFS
+            index = np.argmin(np.abs(self.getPowerSpectrum().frequency - peak.frequency))
+            pwrSpectrum[index - 5: index + 5] = -150 # replace the power of the removed bins with -150 dBFS
             
-            #pwrSpectrum[index - 1: index + 1] = np.mean([pwrSpectrum[index - 2], pwrSpectrum[index + 2]]) # replace the power of the removed bins with the average power of the bins before and after the removed bins
-        
         # calculate the noise power as the average power of the power spectrum
         pwrSpectrumLin = 10 ** (pwrSpectrum / 10)
         self.noisePower = 10 * np.log10(np.sum(pwrSpectrumLin))
@@ -304,11 +309,14 @@ class pcmAnalyzer:
     def getTHD(self, number_of_harmonics=50):
         # THD is defined as the sum of the powers of all harmonics
         if self.THD is None:
-            self.THD = sum([10 ** (harmonic.power / 10) for harmonic in self.getHarmonics(number_of_harmonics)])
-            self.THD = 10 * np.log10(self.THD)
-            
+            THD = 0
+            for harmonic in self.getHarmonics(number_of_harmonics):
+                # calculate the THD as the sum of the linear powers of the harmonics
+                THD += 10 ** (harmonic.power / 10)
+            # convert the THD to dBFS
+            self.THD = 10 * np.log10(THD)
         return self.THD
-            
+    
     def getTHDN_FS_old(self, number_of_harmonics=100):
         # THD+N is defined as the sum of the powers of all harmonics and noise
         # Noise power is calculated as the average power of the power spectrum excluding the fundamental frequency and its harmonics
@@ -334,6 +342,15 @@ class pcmAnalyzer:
         # THD+N_FS is defined as the sum of the powers of all harmonics and noise
         if self.THDN_FS is None:
             self.THDN_FS, d = self.getNoisePower(0)
+            #plot the noise spectrum in the d variable
+            # plt.figure()
+            # plt.plot(self.getPowerSpectrum().frequency, d)
+            # plt.title('Noise Spectrum')
+            # plt.xlabel('Frequency [Hz]')
+            # plt.ylabel('Power [dBFS]')
+            # plt.ylim([self.fftNoiseFloor-20, 10])
+            # plt.grid()
+            # plt.show()
         return self.THDN_FS
     
     
@@ -385,7 +402,7 @@ class pcmAnalyzer:
             # print (f"ADC full scale: {self.adcFS:.0f}")
             # print (f"Signal power FS: {signalPowerFS:.1f} dBFS")
             self.ENOB_FS = (self.getSNDR_FS() - 1.76 - self.getFundamental().power) / 6.02
-            
+            #self.ENOB_FS = (self.getSNDR_FS() - 1.76) / 6.02
         return self.ENOB_FS
     
     
@@ -394,6 +411,8 @@ class pcmAnalyzer:
         # ENOB = (SNDR - 1.76) / 6.02
         if self.ENOB is None:
             self.ENOB = (self.getSNDR() - 1.76 - self.getFundamental().power) / 6.02   
+            #self.ENOB = (self.getSNDR() - 1.76) / 6.02   
+
         return self.ENOB
     
     
@@ -411,44 +430,41 @@ class pcmAnalyzer:
             print(f"{harmonic.index:<6}{harmonic.frequency/1e3:<15.6f}{harmonic.power:<10.1f}")
                 
         print(f"\n{'N:':<21}{self.get_N():<5.1f} dBFS")
-        print(f"{len(self.getHarmonics())}{' harmonics power:':<18} {self.getTHD(5):<5.1f} dBFS")
+        print(f"{'THD:':<21}{self.getTHD():<5.1f} dBFS")
         print(f"{'THD+N FS:':<21}{self.getTHDN_FS():<5.1f} dBFS")
-        print(f"{'THD+N:':<21}{self.getTHDN():<5.1f} dBc")
+        print(f"{'SNR:':<21}{self.getSNR():<5.1f} dBFS")
         print(f"{'SNDR FS:':<21}{self.getSNDR_FS():<5.1f} dBFS")
-        print(f"{'SNDR:':<21}{self.getSNDR():<5.1f} dBc")
-        print(f"{'SFDR FS:':<21}{self.getSFDR():<5.1f} dBFS")
+        print(f"{'SNDR:':<21}{self.getSNDR():<5.1f} dBFS")
+        print(f"{'SFDR:':<21}{self.getSFDR():<5.1f} dBFS")
         print(f"{'ENOB FS:':<21}{self.getENOB_FS():<5.1f} bits")
         print(f"{'ENOB:':<21}{self.getENOB():<5.1f} bits")
-        print("\n************* End of Signal Analysis results *************")
         
         
 def main():
     #plt.close('all')
     
     #from testData import pcmSignal as generate_pcm_signal_with_harmonics
-    pcmSgl = pcmSignal(frequency= 10e3,
-                       amplitude=0, 
+    pcmSgl = pcmSignal(frequency= 391054.62544299156,
+                       amplitude=-1, 
                        sampling_rate=1e6, 
                        adcResolution=12,
-                       harmonic_levels=[-60, -65, -70, -75, -80]
+                       harmonic_levels=[-60]#, -65, -70, -75, -80]
                        )
     
-    pcmSgl.printSignalSpecs()
+    #pcmSgl.printSignalSpecs()
     #pcmSgl.plotPCMVector()
     
     # initialize an object of the pcmSignalAnalyser class with the generated pcmSgl as input
     analysis = pcmAnalyzer(pcmSgl.pcmVector, pcmSgl.sampling_rate, pcmSgl.adcResolution)
     
     # print the results of the signal analysis
-    analysis.printAll()
+    #analysis.printAll()
+    print(f"N_FS = {analysis.get_N()}")
+    print(f"THD = {analysis.getTHD(10)}")
     # plot the power spectrum of the signal
-    analysis.plotPowerSpectrum()
-    
-    
-    plt.show()
-    
-    
-    
+    # analysis.plotPowerSpectrum()
+    # plt.show()
+
      
 if __name__ == '__main__':
     main()
