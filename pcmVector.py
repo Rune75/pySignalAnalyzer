@@ -44,7 +44,7 @@ class pcmSignal:
             # Add harmonics to the waveform
             for i in range(len(self.harmonic_levels)):
                 H_freq = (i + 2) * self.frequency
-                H_lvl = 10 ** (self.harmonic_levels[i] / 20) * self.amplitude
+                H_lvl = 10 ** (self.harmonic_levels[i] / 20) * self.adcFS
                 waveform = waveform + H_lvl * np.sin(2 * np.pi * H_freq * time)
             self.pcmMaxRes = waveform
             # get waveform amplitude
@@ -172,7 +172,7 @@ def main():
     pcmSgl = pcmSignal(frequency=10e3, 
                        amplitude=0, 
                        sampling_rate=1e6, 
-                       adcResolution=2, 
+                       adcResolution=12, 
                        harmonic_levels=[]
                        )
     

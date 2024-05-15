@@ -33,14 +33,20 @@ for i in range(1, 25):
     # get zero crossings
     zeroCrossings = getZeroCrossings(pcmVector)
     # rotate the pcm signal to the first zero crossing
-    pcmVector = np.roll(pcmVector, -zeroCrossings[0])
+    #pcmVector = np.roll(pcmVector, -zeroCrossings[0])
     
     # run spectral analysis
     analysis = pcmAnalyzer(pcmVector, adcSampleRate, adcResolution)
     
-    # plot the analysis results to the pdf file
-    pp.savefig(analysis.plotPowerSpectrum())
-
+    # plot the analysis results to the pdf file.
+    ax = analysis.plotPowerSpectrum()
+    # add text to the plot
+    ax.text(0.7, 0.1, 'File: data_' + str(i) + '.csv') #, horizontalalignment='right', verticalalignment='top')
+    pp.savefig(ax.figure, bbox_inches='tight')
+    
+    #pp.savefig(analysis.plotPowerSpectrum(), bbox_inches='tight')
+    
+    
 pp.close()
 
 # open the pdf file
