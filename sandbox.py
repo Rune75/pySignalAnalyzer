@@ -1,84 +1,33 @@
+#Author : Mathuranathan Viswanathan for gaussianwaves.com
+#Date: 13 Sept 2020
+#Script to calculate equivalent noise bandwidth (ENBW) for some well known window functions
 
-# import pcm signal from csv file data_21.csv
 import numpy as np
-import matplotlib.pyplot as plt 
 import pandas as pd
+from scipy import signal
 
-from pcmAnalyzer import pcmAnalyzer
+def equivalent_noise_bandwidth(window):
+    #Returns the Equivalent Noise BandWidth (ENBW)
+    return len(window) * np.sum(window**2) / np.sum(window)**2
 
-
-def getZeroCrossings(data, interpolationFactor=1):
-    # get zero crossings
-    # interpolate the signal to get a better resolution
-    data = np.interp(np.linspace(0, len(data), len(data)*interpolationFactor), np.arange(len(data)), data,)
-    # find zero crossings
-    zeroCrossings = np.where(np.diff(np.sign(data))>0)[0]+1 # positive going zero crossings indexes in the signal add 1 to get the index of the zero crossing
-
-        
-    return zeroCrossings
-
-def plotSignalAndZeroCrossings(pcmVector, zeroCrossings):
-    # plot the signal and zero crossings
-
-    samplesToPlot = 100
-    # plot start and end of the pcm signal is horizontal subplots
-    fig, axs = plt.subplots(2)
-    axs[0].plot(pcmVector[:samplesToPlot])
-    axs[0].set_title('PCM Signal Start')
-    axs[0].set_xlabel('Samples')
-    axs[0].set_ylabel('Amplitude')
-    # add 'x' marks at the sample locations
-    axs[0].plot(np.arange(samplesToPlot), pcmVector[:samplesToPlot], 'x')
-    # add red dots at the zero crossings
-    axs[0].plot(zeroCrossings[:5], pcmVector[zeroCrossings[:5]], 'ro')
-    axs[0].grid()
-
-    axs[1].plot(pcmVector[-samplesToPlot:])
-    axs[1].set_title('PCM Signal End')
-    axs[1].set_xlabel('Samples')
-    axs[1].set_ylabel('Amplitude')
-    axs[1].grid()
-    pass
-        
-
-def getFrequency(data, adcSampleRate):
-    interpolationFactor = 1000
-    adcSampleRate = adcSampleRate*interpolationFactor
+def get_enbw_windows():
+    #Return ENBW for all the following windows as a dataframe
+    window_names = ['boxcar','barthann','bartlett','blackman','blackmanharris','bohman','cosine','exponential','flattop','hamming','hann','nuttall','parzen','triang']
     
-    zeroCrossings = getZeroCrossings(data)
-    zeroCrossingsFrequency = adcSampleRate/np.diff(zeroCrossings)
-    avgFrequency = np.mean(zeroCrossingsFrequency)
-    return avgFrequency
+    df = pd.DataFrame(columns=['Window','ENBW (bins)','ENBW correction (dB)'])
+    for window_name in window_names:
+        method_name = window_name
+        func_to_run = getattr(signal.windows, method_name) #map window names to window functions in scipy package
+        L = 16384 #Number of points in the output window
+        window = func_to_run(L) #call the functions
+        
+        enbw = equivalent_noise_bandwidth(window) #compute ENBW
+        
+        df = df._append({'Window': window_name.title(),'ENBW (bins)':round(enbw,3),'ENBW correction (dB)': round(10*np.log10(enbw),3)},ignore_index=True)
+        
+    return df
 
-# read csv file. delimiter is ","
-pcmVector = pd.read_csv('data/data_15.csv', delimiter=',', header=None)
-pcmVector = pcmVector.values.flatten()[:8192]
-print('Number of samples in the signal: ', len(pcmVector))
+df = get_enbw_windows() #call the function
+# display the dataframe 
+print(df)
 
-adcResolution = 12
-adcSampleRate = 1e6
-
-
-# remove the DC offset from the signal
-#pcmVector = pcmVector - np.mean(pcmVector)
-data = pcmVector
-
-zeroCrossings = getZeroCrossings(data)
-
-# get the frequency of the signal
-avgFrequency = getFrequency(data, adcSampleRate)
-print('Average frequency of the signal: ', avgFrequency)
-
-index = zeroCrossings[0]
-print('Index of the first rising zero crossing in the signal: ', index)
-
-
-
-
-analysis = pcmAnalyzer(data, adcSampleRate, adcResolution)
-analysis.plotPowerSpectrum()
-# analysis.printAll()
-
-
-
-                                    

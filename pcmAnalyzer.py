@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from pcmVector import pcmSignal
 from scipy.fft import fft, fftfreq
+from scipy import signal as sg
+
 
 # The pcmAnalyzer class is used to analyze the power spectrum of a PCM signal               
 class pcmAnalyzer:
@@ -20,6 +22,7 @@ class pcmAnalyzer:
         self.magnitude_spectrum = self.spectrum()
         self.noiseSpectrum = self.spectrum()
         self.fundamental = self.peak()
+        self.fftwindow = self.window('blackmanharris', self.num_samples)
         self.quantization_noise = 20 * np.log10(1 / (2 ** (self.adcResolution - 1)))
         self.harmonics = []
         self._N = None
@@ -64,7 +67,61 @@ class pcmAnalyzer:
             self.frequency = frequency
             self.level = level
             
-    
+    class window:
+        def __init__(self, type, size):
+            self.type = type
+            self.size = size
+            
+            self.window = sg.get_window(type, self.size)
+            
+            # # window losses
+            # self.processGain = 10 * np.log10(self.size / 2)
+            
+            self.enbw = size * np.sum(np.abs(self.window) ** 2) / np.abs(np.sum(self.window)) ** 2 # Equivalent Noise Bandwidth
+            # scalloping loss for the specific window
+            self.maxScallopingLoss = self.getMaxScaplopingLoss()
+            # coherent power gain cpg
+            self.cpg = 20 * np.log10(np.mean(self.window))
+            self.enbwCorr = 10 * np.log10(self.enbw)
+            
+        
+        def getMaxScaplopingLoss(self):
+            # Generate the complex exponential term
+            n = np.arange(len(self.window))
+            complex_exp = np.exp(-1j * np.pi / self.size * n)
+            
+            # Calculate the numerator and denominator
+            numerator = np.sum(self.window * complex_exp)
+            denominator = np.sum(self.window)
+            
+            # Calculate the scalloping loss
+            scalloping_loss = numerator / denominator
+            
+            return 20 * np.log10(np.abs(scalloping_loss))
+                    
+        
+        def printWindowSpecs(self):
+            # print window specs in a table format
+            print("\n************* Window specs: *************")
+            print(f"{'Window type:':<35}{self.type:<10}")
+            print(f"{'Window size:':<35}{self.size:<10}")
+            print(f"{'Equivalent Noise Bandwidth ENBW:':<35}{self.enbw:<10.3f}")
+            print(f"{'ENBW Correction:':<35}{self.enbwCorr:<10.3f}")
+            print(f"{'Max Scalloping Loss:':<35}{self.maxScallopingLoss:<10.3f}")
+            print(f"{'Coherent Power Gain CPG:':<35}{self.cpg:<10.3f}")
+            print("\n")
+            
+        def plotWindow(self):
+            # plot the window function
+            plt.figure()
+            plt.plot(self.window)
+            plt.title(f'{self.type} window')
+            plt.xlabel('Samples')
+            plt.ylabel('Amplitude')
+            plt.grid()
+            plt.show()
+            
+                
     def getMagnitudeSpectrum_numpy(self):
         if self.magnitude_spectrum.frequency is None:
             # Calculate the magnitude spectrum of the signal
@@ -86,11 +143,7 @@ class pcmAnalyzer:
         if self.magnitude_spectrum.frequency is None:
             
             #apply a window to the signal before calculating the fft
-            window = np.hanning(self.num_samples)
-            self.signal = self.signal * window
-            
-            # add compensation for the window
-            self.signal = self.signal / np.mean(window)
+            self.signal = self.signal * self.fftwindow.window
             
             # Calculate the magnitude spectrum of the signal
             fft_result = fft(self.signal)
@@ -110,9 +163,9 @@ class pcmAnalyzer:
             # Create freq steps –> x-axis for frequency spectrum
             self.magnitude_spectrum.frequency = np.linspace(0, (self.num_samples-1) * fstep, self.num_samples) 
             
+            # keep only the first half of the spectrum
             self.magnitude_spectrum.frequency = self.magnitude_spectrum.frequency[:int(self.num_samples / 2 + 1)]
             
-            #self.magnitude_spectrum.frequency = fftfreq(self.num_samples, d=1/self.sampling_rate)[:int(self.num_samples /2 + 1)]
             # remove the DC component
             self.magnitude_spectrum.level[0] = -150
             
@@ -126,6 +179,9 @@ class pcmAnalyzer:
             self.power_spectrum.level = 10 ** (self.getMagnitudeSpectrum().level / 20)
             self.power_spectrum.level = self.power_spectrum.level ** 2
             self.power_spectrum.level = 10 * np.log10(self.power_spectrum.level)
+            
+            # compensate the power spectrum for the coherent power gain
+            self.power_spectrum.level = self.power_spectrum.level - self.fftwindow.cpg
             
         return self.power_spectrum
             
@@ -174,7 +230,7 @@ class pcmAnalyzer:
             ['Param', 'Value'],
             ['Fundamental power:', f'{self.getFundamental().power:.1f} dBFS'],
             ['N_FS:', f'{self.get_N():.1f} dBFS'],
-            ['THD:', f'{self.getTHDN():.1f} dBc'],
+            ['THD:', f'{self.getTHD():.1f} dBc'],
             ['THD+N FS:', f'{self.getTHDN_FS():.1f} dBFS'],
             ['SNR:', f'{self.getSNR():.1f} dBc'],
             ['SNDR FS:', f'{self.getSNDR_FS():.1f} dBFS'],
@@ -226,11 +282,11 @@ class pcmAnalyzer:
         # find the closest frequency bin to the given frequency
         index = np.argmin(np.abs(self.getPowerSpectrum().frequency - frequency))
         
-        # find the peak with the highest power within +-3 frequency bins of the given frequency
+        # find the peak with the highest power within +-2 frequency bins of the given frequency
         top = self.peak()
         top.power = max(self.getPowerSpectrum().level[index - 2: index + 2])
-        # find the frequency of the peak
         top.frequency = self.getPowerSpectrum().frequency[np.where(self.getPowerSpectrum().level == top.power)[0][0]]    
+
         return top
     
     def getAlias(self, harmonic_frequency):
@@ -281,7 +337,8 @@ class pcmAnalyzer:
         # calculate the noise power as the average power of the power spectrum
         pwrSpectrumLin = 10 ** (pwrSpectrum / 10)
         self.noisePower = 10 * np.log10(np.sum(pwrSpectrumLin))
-        
+        # Add window losses to the noise power
+        self.noisePower = self.noisePower - self.fftwindow.enbwCorr
         return self.noisePower, pwrSpectrum
     
     def get_N(self):
@@ -445,10 +502,10 @@ def main():
     
     #from testData import pcmSignal as generate_pcm_signal_with_harmonics
     pcmSgl = pcmSignal(frequency= 391054.62544299156,
-                       amplitude=-1, 
+                       amplitude=0, 
                        sampling_rate=1e6, 
                        adcResolution=12,
-                       harmonic_levels=[-60]#, -65, -70, -75, -80]
+                       harmonic_levels=[-74]#, -65, -70, -75, -80]
                        )
     
     #pcmSgl.printSignalSpecs()
@@ -459,11 +516,13 @@ def main():
     
     # print the results of the signal analysis
     #analysis.printAll()
-    print(f"N_FS = {analysis.get_N()}")
-    print(f"THD = {analysis.getTHD(10)}")
+    print(f'N: {analysis.get_N():.1f} dBFS')
+    print(f'THD: {analysis.getTHD(10):.1f} dBFS')
+    print(f'THD+N FS: {analysis.getTHDN_FS():.1f} dBFS')
+    
     # plot the power spectrum of the signal
-    # analysis.plotPowerSpectrum()
-    # plt.show()
+    analysis.plotPowerSpectrum()
+    plt.show()
 
      
 if __name__ == '__main__':
