@@ -3,8 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
-from pcmVector import pcmSignal
-from scipy.fft import fft, fftfreq
+from scipy.fft import fft
 from scipy import signal as sg
 
 
@@ -26,6 +25,7 @@ class pcmAnalyzer:
         self.quantization_noise = 20 * np.log10(1 / (2 ** (self.adcResolution - 1)))
         self.harmonics = []
         self._N = None
+        self.THD_FS = None
         self.THD = None
         self.THDN = None
         self.THDN_FS = None
@@ -199,7 +199,7 @@ class pcmAnalyzer:
         ax1.set_ylabel('Power [dBFS]')
         
         # set the y-axis limits to the average noise power - 10 dBFS and 10 dBFS
-        plt.ylim([self.fftNoiseFloor, 10])
+        plt.ylim([self.fftNoiseFloor-10, 10])
         
         # format the x-axis to show the frequency in kHz
         plt.xticks(np.arange(0, self.sampling_rate / 2 + 1e5, 1e5), 
@@ -219,7 +219,7 @@ class pcmAnalyzer:
             if harmonic.power > self.fftNoiseFloor:
                 plt.plot(harmonic.frequency, harmonic.power, 'ro', markersize=2)
                 plt.text(harmonic.frequency, harmonic.power, f'H{harmonic.index}', fontsize=6, color='red')
-                
+               
         plt.grid()
         ax2 = plt.subplot(gs[1])
         ax2.axis('off')
@@ -229,14 +229,19 @@ class pcmAnalyzer:
         text = [
             ['Param', 'Value'],
             ['Fundamental power:', f'{self.getFundamental().power:.1f} dBFS'],
+            # print the fulscale results first
             ['N_FS:', f'{self.get_N():.1f} dBFS'],
-            ['THD:', f'{self.getTHD():.1f} dBc'],
+            ['THD_FS:', f'{self.getTHD_FS():.1f} dBFS'],
             ['THD+N FS:', f'{self.getTHDN_FS():.1f} dBFS'],
-            ['SNR:', f'{self.getSNR():.1f} dBc'],
+            ['SNR_FS:', f'{self.getSNR_FS():.1f} dBFS'],
             ['SNDR FS:', f'{self.getSNDR_FS():.1f} dBFS'],
+            ['ENOB FS:', f'{self.getENOB_FS():.1f} bits'],
+            # print the rest of the results in the same order
+            ['THD:', f'{self.getTHD():.1f} dBc'],
+            ['THD+N:', f'{self.getTHDN():.1f} dBc'],
+            ['SNR:', f'{self.getSNR():.1f} dBc'],
             ['SNDR:', f'{self.getSNDR():.1f} dBc'],
             ['SFDR:', f'{self.getSFDR():.1f} dBc'],
-            ['ENOB FS:', f'{self.getENOB_FS():.1f} bits'],
             ['ENOB:', f'{self.getENOB():.1f} bits'],
             # print the 5 highest harmonics
             ['Harmonics:', ''],
@@ -258,10 +263,10 @@ class pcmAnalyzer:
         # plot the noise spectrum of the signal in a subplot
         ax2 = plt.subplot(gs[2])
         plt.plot(self.noiseSpectrum.frequency, self.noiseSpectrum.level)
-        plt.title('Noise Spectrum')
+        #plt.title('Noise Spectrum')
         plt.xlabel('Frequency [Hz]')
-        plt.ylabel('Power [dBFS]')
-        plt.ylim([self.fftNoiseFloor-20, self.fftNoiseFloor+40])
+        plt.ylabel('Noise [dBFS]')
+        plt.ylim([self.fftNoiseFloor-10, self.fftNoiseFloor+30])
         plt.grid()
         return fig
         
@@ -351,9 +356,6 @@ class pcmAnalyzer:
     def getSNR(self):
         # Signal-to-Noise Ratio (SNR) is the ratio of the power of the fundamental
         # to the power of the noise excluding the harmonics
-        
-        # SNR_FS = 10 * log10(P1 / Pn)
-        # where P1 is the power of the fundamental frequency and Pn is the power of the noise
         if self.SNR is None:
             self.SNR = self.getFundamental().power - self.get_N()
         return self.SNR
@@ -363,15 +365,21 @@ class pcmAnalyzer:
             self.SNR = self.get_N()
         return self.SNR
     
-    def getTHD(self, number_of_harmonics=50):
+    def getTHD_FS(self, number_of_harmonics=50):
         # THD is defined as the sum of the powers of all harmonics
-        if self.THD is None:
+        if self.THD_FS is None:
             THD = 0
             for harmonic in self.getHarmonics(number_of_harmonics):
                 # calculate the THD as the sum of the linear powers of the harmonics
                 THD += 10 ** (harmonic.power / 10)
             # convert the THD to dBFS
-            self.THD = 10 * np.log10(THD)
+            self.THD_FS = 10 * np.log10(THD)
+        return self.THD_FS
+    
+    def getTHD(self):
+        # THD is defined as the sum of the powers of all harmonics
+        if self.THD is None:
+            self.THD = self.getTHD_FS() - self.getFundamental().power
         return self.THD
     
     def getTHDN_FS_old(self, number_of_harmonics=100):
@@ -383,11 +391,10 @@ class pcmAnalyzer:
             _N_Linear = 10 ** (self.get_N() / 10)
             
             # Convert the THD from dBFS to linear scale
-            THD_linear = 10 ** (self.getTHD(number_of_harmonics) / 10)
+            THD_linear = 10 ** (self.getTHD_FS(number_of_harmonics) / 10)
             
             # calculate the THD+N in linear scale
             THDN_linear = (THD_linear + _N_Linear)
-            #THDN_linear = np.sqrt(THD_linear ** 2 + noise_power_linear)
             
             # convert the THD+N back to dBFS
             self.THDN_FS = 10 * np.log10(THDN_linear)
@@ -399,15 +406,6 @@ class pcmAnalyzer:
         # THD+N_FS is defined as the sum of the powers of all harmonics and noise
         if self.THDN_FS is None:
             self.THDN_FS, d = self.getNoisePower(0)
-            #plot the noise spectrum in the d variable
-            # plt.figure()
-            # plt.plot(self.getPowerSpectrum().frequency, d)
-            # plt.title('Noise Spectrum')
-            # plt.xlabel('Frequency [Hz]')
-            # plt.ylabel('Power [dBFS]')
-            # plt.ylim([self.fftNoiseFloor-20, 10])
-            # plt.grid()
-            # plt.show()
         return self.THDN_FS
     
     
@@ -485,22 +483,31 @@ class pcmAnalyzer:
         print(f"{'Index':<6}{'Frequency':<15}{'Power':<10}")
         for harmonic in self.getHarmonics(5):
             print(f"{harmonic.index:<6}{harmonic.frequency/1e3:<15.6f}{harmonic.power:<10.1f}")
-                
-        print(f"\n{'N:':<21}{self.get_N():<5.1f} dBFS")
-        print(f"{'THD:':<21}{self.getTHD():<5.1f} dBFS")
+        # print fulscale results first
+        print('\n********* Fullscale results: **********')
+        print(f"{'N:':<21}{self.get_N():<5.1f} dBFS")
+        print(f"{'THD_FS:':<21}{self.getTHD_FS():<5.1f} dBFS")
         print(f"{'THD+N FS:':<21}{self.getTHDN_FS():<5.1f} dBFS")
-        print(f"{'SNR:':<21}{self.getSNR():<5.1f} dBFS")
+        print(f"{'SNR_FS:':<21}{self.getSNR_FS():<5.1f} dBFS")
         print(f"{'SNDR FS:':<21}{self.getSNDR_FS():<5.1f} dBFS")
-        print(f"{'SNDR:':<21}{self.getSNDR():<5.1f} dBFS")
-        print(f"{'SFDR:':<21}{self.getSFDR():<5.1f} dBFS")
         print(f"{'ENOB FS:':<21}{self.getENOB_FS():<5.1f} bits")
+        # print the rest of the results in the same order
+        print('\n**** Fundamental referenced Results: ****')
+        print(f"{'THD:':<21}{self.getTHD():<5.1f} dBc")
+        print(f"{'THD+N:':<21}{self.getTHDN():<5.1f} dBc")
+        print(f"{'SNR:':<21}{self.getSNR():<5.1f} dBc")
+        print(f"{'SNDR:':<21}{self.getSNDR():<5.1f} dBc")
+        print(f"{'SFDR:':<21}{self.getSFDR():<5.1f} dBc")
         print(f"{'ENOB:':<21}{self.getENOB():<5.1f} bits")
+        print("\n")
         
         
 def main():
-    #plt.close('all')
-    
     #from testData import pcmSignal as generate_pcm_signal_with_harmonics
+    
+    import sys
+    sys.path.append("test")
+    from pcmVector import pcmSignal
     pcmSgl = pcmSignal(frequency= 391054.62544299156,
                        amplitude=0, 
                        sampling_rate=1e6, 
@@ -517,7 +524,7 @@ def main():
     # print the results of the signal analysis
     #analysis.printAll()
     print(f'N: {analysis.get_N():.1f} dBFS')
-    print(f'THD: {analysis.getTHD(10):.1f} dBFS')
+    print(f'THD: {analysis.getTHD_FS(10):.1f} dBFS')
     print(f'THD+N FS: {analysis.getTHDN_FS():.1f} dBFS')
     
     # plot the power spectrum of the signal

@@ -2,9 +2,10 @@
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pcmAnalyzer import pcmAnalyzer
-
 
 adcResolution = 12
 adcSampleRate = 1e6

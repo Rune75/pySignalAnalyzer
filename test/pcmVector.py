@@ -60,17 +60,7 @@ class pcmSignal:
         waveform = np.round(vaveform / stepSize) * stepSize
         return waveform
     
-        
-    def quantize_old(self,x, S):
-        X = x.reshape((-1,1))
-        S = S.reshape((1,-1))
-        dists = abs(X-S)
-        
-        nearestIndex = dists.argmin(axis=1)
-        quantized = S.flat[nearestIndex]
-        
-        return quantized.reshape(x.shape)
-    
+
     def getQuantizationNoise(self):
         if len(self.quantization_noise) == 0:
             # Get the quantization noise vector from the generated signal by subtracting
@@ -82,21 +72,15 @@ class pcmSignal:
         
     def getSignalPowerdBFS(self):
         # Get the signal power in dBFS
-        # The signal power is the power of the signal before quantization
-    
         signal_power = np.mean(np.abs(self.pcmVector) ** 2)
-        
         fullScalePower = (self.adcFS)**2 / 2 # full scale power in linear scale
-        
         signal_power_dBFS = 10 * np.log10(signal_power / fullScalePower)
-        
         return signal_power_dBFS
     
             
     def getQuantizationNoisePowerdBFS(self):
         # Get the quantization noise power in dBFS
-        # The quantization noise power is the power of the quantization noise signal
-        # in dBFS (decibels full scale)
+        # The quantization noise power is the power of the quantization noise
         quantization_noise_power = 10 * np.log10(np.mean(abs(self.getQuantizationNoise()) ** 2)/ (self.adcFS ** 2 / 2))
         
         return quantization_noise_power
@@ -163,8 +147,6 @@ class pcmSignal:
         print(f'Quantization Noise Power: {self.getQuantizationNoisePowerdBFS():.1f} dBFS')
         print(f'SNR: {self.getSNR():.1f} dB')
         print(f'Ideal SNR: {self.GetIdealSNR():.1f} dB')
-        
-            
         print("************************")
         
         

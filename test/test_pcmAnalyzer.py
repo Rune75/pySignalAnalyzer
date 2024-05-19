@@ -1,7 +1,12 @@
 import unittest
-from pcmAnalyzer import pcmAnalyzer # Import the module to be tested
+# import the module to be tested from the parent directory
 from pcmVector import pcmSignal # Import the class to be used for generating test data
 import numpy as np
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Add the parent directory to the path
+from pcmAnalyzer import pcmAnalyzer
+
 
 
 class TestPcmAnalyzer(unittest.TestCase):
