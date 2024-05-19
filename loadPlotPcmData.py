@@ -1,20 +1,9 @@
 
-# import pcm signal from csv file data_21.csv
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 import os
 from pcmAnalyzer import pcmAnalyzer
-
-
-def getZeroCrossings(data, interpolationFactor=1):
-    # get zero crossings
-    # interpolate the signal to get a better resolution
-    data = np.interp(np.linspace(0, len(data), len(data)*interpolationFactor), np.arange(len(data)), data,)
-    # find zero crossings
-    zeroCrossings = np.where(np.diff(np.sign(data))>0)[0]+1 # positive going zero crossings indexes in the signal add 1 to get the index of the zero crossing
-    
-    return zeroCrossings
 
 
 adcResolution = 12
@@ -30,22 +19,14 @@ for i in range(1, 25):
     # remove the DC offset from the signal
     pcmVector = pcmVector - np.mean(pcmVector)
     
-    # get zero crossings
-    zeroCrossings = getZeroCrossings(pcmVector)
-    # rotate the pcm signal to the first zero crossing
-    #pcmVector = np.roll(pcmVector, -zeroCrossings[0])
-    
     # run spectral analysis
     analysis = pcmAnalyzer(pcmVector, adcSampleRate, adcResolution)
     
     # plot the analysis results to the pdf file.
     ax = analysis.plotPowerSpectrum()
     # add text to the plot
-    ax.text(0.7, 0.1, 'File: data_' + str(i) + '.csv') #, horizontalalignment='right', verticalalignment='top')
+    ax.text(0.7, 0.1, 'File: data_' + str(i) + '.csv')
     pp.savefig(ax.figure, bbox_inches='tight')
-    
-    #pp.savefig(analysis.plotPowerSpectrum(), bbox_inches='tight')
-    
     
 pp.close()
 
