@@ -1,6 +1,4 @@
 # A basic usage example of the pcm analyzer class
-
-import numpy as np
 from pcmAnalyzer import pcmAnalyzer
 import matplotlib.pyplot as plt
 
