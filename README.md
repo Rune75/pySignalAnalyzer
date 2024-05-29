@@ -1,5 +1,5 @@
 ## pySignalAnalyzer
-pySignalAnalyzer is python class implementation of a sampled signal analyzer used for testing ADC signal quality or other sampled signals.
+pySignalAnalyzer is a python class implementation of a sampled signal analyzer used for testing ADC signal quality or other sampled signals.
 
 The output of the analysis includes: 
 - THD
@@ -20,5 +20,6 @@ Dependencies:
 - matplotlib
 
 Limitations
+
 The class is currently missing subtraction of scaloping loss, so we rely on having a fairly coherent input signal frequency. 
 
