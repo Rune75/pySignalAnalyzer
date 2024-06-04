@@ -26,11 +26,7 @@ adcSampleRate = 1e6
 pp = PdfPages('analysisResults.pdf')
 # read and plot al the data files
 for i in range(0, 26):
-    # Laod the PCM data from ATE
-    #pcmVector = pd.read_csv('/home/rune/work/githubRune75/pcmAnalyzer/data/ATE/data_' + str(i) + '.csv', delimiter=',', header=None)
-    
-    # # Load the PCM data from NI
-    # folder_path = '/home/rune/work/githubRune75/pcmAnalyzer/data/NI'
+
     # Load the PCM data from NI
     folder_path = '/home/rune/work/githubRune75/pcmAnalyzer/data/ATE'
     files = get25LastFiles(folder_path)
