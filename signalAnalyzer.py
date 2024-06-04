@@ -168,7 +168,8 @@ class signalAnalyzer:
         # Plot the power spectrum of the signal and add a table with the results of the signal analysis in two subplots
         fig = plt.figure(figsize=(12, 6))
         
-        gs = fig.add_gridspec(2, 2, width_ratios=[2, 1], height_ratios=[2,1])
+        gs = fig.add_gridspec(1, 2, width_ratios=[2, 1])
+        #(2, 1, width_ratios=[2, 1], height_ratios=[2,1])
         ax1 = plt.subplot(gs[0])
         
         ax1.plot(self.getPowerSpectrum()._frequency, self.getPowerSpectrum()._level)
@@ -231,17 +232,9 @@ class signalAnalyzer:
             
                 
         # create a table with the text in the upper left corner of the plot
-        plt.table(cellText=text, loc='upper left', cellLoc='left', colWidths=[0.7, 0.3])
+        plt.table(cellText=text, loc='upper left', cellLoc='left', colWidths=[0.7, 0.5])
         plt.rc('font', size=13)
         
-        # plot the noise spectrum of the signal in a subplot
-        ax2 = plt.subplot(gs[2])
-        plt.plot(self._noiseSpectrum._frequency, self._noiseSpectrum._level)
-        #plt.title('Noise Spectrum')
-        plt.xlabel('Frequency [Hz]')
-        plt.ylabel('Noise [dBFS]')
-        plt.ylim([self._fftNoiseFloor-10, self._fftNoiseFloor+30])
-        plt.grid()
         return fig
         
     
@@ -426,14 +419,7 @@ class signalAnalyzer:
         # ENOB_FS is defined as the ratio of the SNDR to the quantization noise level in dBFS
         # ENOB_FS = (SNDR - 1.76) / 6.02
         if self._ENOB_FS is None:
-            # signalAmplitude = 1908 #20 ** (self.getFundamental()._power / 20) * self._adcFS
-            
-            # signalPowerFS = 20 * np.log10(self._adcFS / signalAmplitude)
-            # print (f"Signal amplitude: {signalAmplitude:.1f}")
-            # print (f"ADC full scale: {self._adcFS:.0f}")
-            # print (f"Signal power FS: {signalPowerFS:.1f} dBFS")
             self._ENOB_FS = (self.getSNDR_FS() - 1.76 - self.getFundamental()._power) / 6.02
-            #self._ENOB_FS = (self.getSNDR_FS() - 1.76) / 6.02
         return self._ENOB_FS
     
     
