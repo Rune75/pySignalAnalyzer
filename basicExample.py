@@ -1,5 +1,5 @@
 # A basic usage example of the pcm analyzer class
-from pcmAnalyzer import pcmAnalyzer
+from signalAnalyzer import signalAnalyzer
 import matplotlib.pyplot as plt
 
 # *******  Create a test signal ***********************************************************
@@ -18,8 +18,8 @@ signal = pcmSignal(frequency= 356e3,                # 356 kHz signal frequency
 # ****************************************************************************************
 
 # ******  Analyze the signal *************
-# Initialize an object of the pcmAnalyzer class with the test signal as input
-analyzer = pcmAnalyzer(signal.pcmVector, sampleRate, adcResolution)
+# Initialize an object of the signalAnalyzer class with the test signal as input
+analyzer = signalAnalyzer(signal.pcmVector, sampleRate, adcResolution)
 
 # get SNR
 snr = analyzer.getSNR()

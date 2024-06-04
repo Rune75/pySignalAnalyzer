@@ -25,7 +25,7 @@ data/
 sandbox.py
 *.pdf
 
-pcmAnalyzer.code-workspace
+signalAnalyzer.code-workspace
 
 sandbox*
 

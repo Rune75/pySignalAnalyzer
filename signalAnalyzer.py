@@ -6,8 +6,8 @@ import scipy.signal as sg
 from scipy.fftpack import fft
 from scipy.signal import find_peaks
 
-# The pcmAnalyzer class is used to analyze the power spectrum of a PCM signal               
-class pcmAnalyzer:
+# The signalAnalyzer class is used to analyze the power spectrum of a PCM signal               
+class signalAnalyzer:
     def __init__(self, signal=None, sampling_rate=None, adcResolution=None): 
         self._signal = signal
         self._sampling_rate =sampling_rate
@@ -483,7 +483,7 @@ def main():
     usage = """A basic usage example of the pcm analyzer class
     # A basic usage example of the pcm analyzer class
     import numpy as np
-    from pcmAnalyzer import pcmAnalyzer
+    from signalAnalyzer import signalAnalyzer
     import matplotlib.pyplot as plt
     
     # *******  Create a test signal ***********************************************************
@@ -502,8 +502,8 @@ def main():
     # ****************************************************************************************
     
     # ******  Analyze the signal *************
-    # Initialize an object of the pcmAnalyzer class with the test signal as input
-    analyzer = pcmAnalyzer(signal.pcmVector, sampleRate, adcResolution)
+    # Initialize an object of the signalAnalyzer class with the test signal as input
+    analyzer = signalAnalyzer(signal.pcmVector, sampleRate, adcResolution)
     
     analyzer.printAll()
     analyzer.plotPowerSpectrum()

@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import pandas as pd
 
-from pcmAnalyzer import pcmAnalyzer
+from signalAnalyzer import signalAnalyzer
 
 
 def getZeroCrossings(data, interpolationFactor=1):
@@ -95,7 +95,7 @@ plotSignalAndZeroCrossings(pcmVector, zeroCrossings)
 
 
 
-analysis = pcmAnalyzer(pcmVector, adcSampleRate, adcResolution)
+analysis = signalAnalyzer(pcmVector, adcSampleRate, adcResolution)
 spectrum = analysis.getPowerSpectrum()
 # plt.plot(spectrum.frequency, spectrum.level)
 # plt.show()

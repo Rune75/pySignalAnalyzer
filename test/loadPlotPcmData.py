@@ -5,7 +5,7 @@ import pandas as pd
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pcmAnalyzer import pcmAnalyzer
+from signalAnalyzer import signalAnalyzer
 
 
 def get25LastFiles(folder_path):
@@ -28,7 +28,7 @@ pp = PdfPages('analysisResults.pdf')
 for i in range(0, 26):
 
     # Load the PCM data from NI
-    folder_path = '/home/rune/work/githubRune75/pcmAnalyzer/data/ATE'
+    folder_path = '/home/rune/work/githubRune75/signalAnalyzer/data/ATE'
     files = get25LastFiles(folder_path)
     pcmVector = pd.read_csv(folder_path + '/' + files[i-1], delimiter=',', header=None)
     
@@ -38,7 +38,7 @@ for i in range(0, 26):
     pcmVector = pcmVector - np.mean(pcmVector)
     
     # run spectral analysis
-    analysis = pcmAnalyzer(pcmVector, adcSampleRate, adcResolution)
+    analysis = signalAnalyzer(pcmVector, adcSampleRate, adcResolution)
     
     # plot the analysis results to the pdf file.
     ax = analysis.plotPowerSpectrum()

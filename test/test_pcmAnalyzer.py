@@ -5,11 +5,11 @@ import numpy as np
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Add the parent directory to the path
-from pcmAnalyzer import pcmAnalyzer
+from signalAnalyzer import signalAnalyzer
 
 
 
-class TestPcmAnalyzer(unittest.TestCase):
+class TestsignalAnalyzer(unittest.TestCase):
     def setUp(self):
         # Set up any necessary test data or objects
         # Create a test signal
@@ -43,8 +43,8 @@ class TestPcmAnalyzer(unittest.TestCase):
 
     def test_getFundamental(self):
         # Test the getFundamental() method
-        # Create an instance of pcmAnalyzer
-        analyzer = pcmAnalyzer(self.signal.pcmVector,
+        # Create an instance of signalAnalyzer
+        analyzer = signalAnalyzer(self.signal.pcmVector,
                                self.sampleRate,
                                self.adcResolution)
         
@@ -62,8 +62,8 @@ class TestPcmAnalyzer(unittest.TestCase):
     
     def test_getTHD(self):
         # Test the getTHD() method
-        # Create an instance of pcmAnalyzer
-        analyzer = pcmAnalyzer(self.signal.pcmVector,
+        # Create an instance of signalAnalyzer
+        analyzer = signalAnalyzer(self.signal.pcmVector,
                                self.sampleRate,
                                self.adcResolution)
         
@@ -76,8 +76,8 @@ class TestPcmAnalyzer(unittest.TestCase):
         
     def test_getHarmonics(self):
         # Test the getHarmonics() method
-        # Create an instance of pcmAnalyzer
-        analyzer = pcmAnalyzer(self.signal.pcmVector,
+        # Create an instance of signalAnalyzer
+        analyzer = signalAnalyzer(self.signal.pcmVector,
                                self.sampleRate,
                                self.adcResolution)
         
@@ -94,8 +94,8 @@ class TestPcmAnalyzer(unittest.TestCase):
             
     def test_windowing(self):
         # Test the windowing() method
-        # Create an instance of pcmAnalyzer
-        analyzer = pcmAnalyzer(self.signal.pcmVector,
+        # Create an instance of signalAnalyzer
+        analyzer = signalAnalyzer(self.signal.pcmVector,
                                self.sampleRate,
                                self.adcResolution)
         
@@ -116,7 +116,7 @@ class TestPcmAnalyzer(unittest.TestCase):
         self.assertAlmostEqual(window.enbw, enbw, delta=0.01)
         
         
-    # Add more test methods for other methods in the pcmAnalyzer class
+    # Add more test methods for other methods in the signalAnalyzer class
     
 
 if __name__ == '__main__':
