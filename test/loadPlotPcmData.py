@@ -28,7 +28,12 @@ pp = PdfPages('analysisResults.pdf')
 for i in range(0, 26):
 
     # Load the PCM data from NI
-    folder_path = '/home/rune/work/githubRune75/signalAnalyzer/data/ATE'
+    # folder_path = '/home/rune/work/githubRune75/signalAnalyzer/data/ATE'
+    # Current directory
+    current_dir = os.getcwd() 
+    folder_path = os.path.join(current_dir, "data/ATE")
+    #folder_path = '../data/ATE/'
+    
     files = get25LastFiles(folder_path)
     pcmVector = pd.read_csv(folder_path + '/' + files[i-1], delimiter=',', header=None)
     
